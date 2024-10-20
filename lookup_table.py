@@ -6,7 +6,7 @@ mode_table = {
     5: '0111', #eci
 }
 
-alphanumeric_tabel = {
+alphanumeric_table = {
     '0': 0,
     '1': 1,
     '2': 2,

@@ -58,28 +58,62 @@ def encode_numeric(number):
     res = []
     while len(number) > 0:
         group = number[:3]
-        res.append(format(int(group), '010b'))
+        group_num = int(group)
+        encoding_format = '010b' if group_num > 99 else '07b' if group_num > 9 else '04b'
+        res.append(format(group_num, encoding_format))
         number = number[3:]
     return res
 
+def encode_alphanumeric(str):
+    str = str.upper()
+    res = []
+    while len(str) > 0:
+        group = str[:2]
+        encoded_val = (alphanumeric_table[group[:1]] * 45 + alphanumeric_table[group[1:]]) if len(group) > 1 else alphanumeric_table[group]
+        encoding_format = '011b' if len(group) > 1 else '06b'
+        print(group, encoding_format, encoded_val)
+        res.append(format(encoded_val, encoding_format))
+        str = str[2:]
+    return res
+
+def getCharacterCountIndicator(version, message, encoding):
+    encoding_format = '08b'
+    if version <= 9:
+        if encoding == 1: encoding_format = '010b'
+        if encoding == 2: encoding_format = '09b'
+        if encoding == 3: encoding_format = '08b'
+    elif version <= 26:
+            if encoding == 1: encoding_format = '012b'
+            if encoding == 2: encoding_format = '011b'
+            if encoding == 3: encoding_format = '016b'
+    elif version <= 40:
+            if encoding == 1: encoding_format = '014b'
+            if encoding == 2: encoding_format = '013b'
+            if encoding == 3: encoding_format = '016b'
+
+    message_len = len(message)
+    return format(message_len, encoding_format)
+
+
 def getUserInput():
+    print("QR Code Generation (Version 1-26)")
     message = input("Enter your message: ")
-    encoding = int(input("What encoding mode would you like:\n 1)Numeric Mode\n 2)Alphanumeric Mode\n 3)Byte Mode\n"))
+    encoding = int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
+    error_correction = input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
 
     match encoding:
-        case 1:
-            encoded_message = encode_numeric(message)
-        case 2:
-            encoded_message = list(map(lambda char: alphanumeric_tabel[char], message.upper()))
-        case 3:
-            encoded_message = list(map(lambda char: format(ord(char), '08b'), message))
+        case 1: encoded_message = encode_numeric(message)
+        case 2: encoded_message = encode_alphanumeric(message)
+        case 3:encoded_message = list(map(lambda char: format(ord(char), '08b'), message))
         case _:
             print("Please chose a valid encoding method")
             sys.exit()
 
+    version = 1
+    char_count = getCharacterCountIndicator(version, message, encoding)
     mode = mode_table[encoding]
 
-    print(mode, encoded_message)
+    print(mode, char_count, encoded_message)
 
             
 
