@@ -2,6 +2,7 @@ import math
 import sys
 from PIL import Image, ImageDraw
 from lookup_table import *
+from character_capacity import capacity_table
 
 def create_qr_matrix(size):
     return [[None] * size for _ in range(size)]
@@ -83,13 +84,13 @@ def getCharacterCountIndicator(version, message, encoding):
         if encoding == 2: encoding_format = '09b'
         if encoding == 3: encoding_format = '08b'
     elif version <= 26:
-            if encoding == 1: encoding_format = '012b'
-            if encoding == 2: encoding_format = '011b'
-            if encoding == 3: encoding_format = '016b'
+        if encoding == 1: encoding_format = '012b'
+        if encoding == 2: encoding_format = '011b'
+        if encoding == 3: encoding_format = '016b'
     elif version <= 40:
-            if encoding == 1: encoding_format = '014b'
-            if encoding == 2: encoding_format = '013b'
-            if encoding == 3: encoding_format = '016b'
+        if encoding == 1: encoding_format = '014b'
+        if encoding == 2: encoding_format = '013b'
+        if encoding == 3: encoding_format = '016b'
 
     message_len = len(message)
     return format(message_len, encoding_format)
@@ -109,11 +110,18 @@ def getUserInput():
             print("Please chose a valid encoding method")
             sys.exit()
 
-    version = 1
-    char_count = getCharacterCountIndicator(version, message, encoding)
     mode = mode_table[encoding]
 
-    print(mode, char_count, encoded_message)
+    qr_version = 1
+    while True :
+        if(capacity_table[qr_version][error_correction][encoding] > len( ) ):
+            break
+        qr_version += 1
+
+    char_count_code = getCharacterCountIndicator(qr_version, message, encoding)
+    
+
+    print(mode, char_count_code, qr_version, encoded_message)
 
             
 
