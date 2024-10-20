@@ -2,8 +2,8 @@ mode_table = {
     1: '0001', #numeric
     2: '0010', #alphanumeric
     3: '0100', #byte
-    4: '1000', #kanji
-    5: '0111', #eci
+    4: '1000', #kanji (not supported)
+    5: '0111', #eci (not supported)
 }
 
 alphanumeric_table = {

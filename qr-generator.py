@@ -3,6 +3,7 @@ import sys
 from PIL import Image, ImageDraw
 from lookup_table import *
 from character_capacity import capacity_table
+from ec_table import ec_blocks_table
 
 def create_qr_matrix(size):
     return [[None] * size for _ in range(size)]
@@ -45,16 +46,6 @@ def draw_qr(matrix, scale=10):
 qr_size = 21
 qr_matrix = create_qr_matrix(qr_size)
 
-# # Add finder patterns at three corners
-# add_finder_pattern(qr_matrix, (0, 0))
-# add_finder_pattern(qr_matrix, (0, qr_size - 7))
-# add_finder_pattern(qr_matrix, (qr_size - 7, 0))
-
-# # Add more steps here to handle data placement and error correction
-
-# # Draw and save the QR code
-# draw_qr(qr_matrix)
-
 def encode_numeric(number):
     res = []
     while len(number) > 0:
@@ -95,6 +86,32 @@ def getCharacterCountIndicator(version, message, encoding):
     message_len = len(message)
     return format(message_len, encoding_format)
 
+def addPadding(data, version, ec_level):
+    padding = ""
+    data_len = len(data)
+    block_arr = ec_blocks_table[version][ec_level]
+    required_bits = (block_arr[0] * block_arr[1] + block_arr[2] * block_arr[3]) * 8
+    
+    # Add terminator (up to 4 bits)
+    terminator_bits = min(required_bits - data_len, 4)
+    padding += '0' * terminator_bits
+    data_len += terminator_bits
+    
+    # Pad with 0s to make the bit string length a multiple of 8
+    padding_bits = (8 - (data_len % 8)) % 8
+    padding += '0' * padding_bits
+    data_len += padding_bits
+
+    # Pad with alternating bytes (236 -> '11101100', 17 -> '00010001')
+    pad_bytes = ['11101100', '00010001']
+    pad_index = 0
+    while data_len < required_bits:
+        padding += pad_bytes[pad_index]
+        data_len += 8
+        pad_index = (pad_index + 1) % 2  # Alternate between 236 and 17
+    
+    return padding
+
 
 def getUserInput():
     print("QR Code Generation (Version 1-26)")
@@ -114,16 +131,18 @@ def getUserInput():
 
     qr_version = 1
     while True :
-        if(capacity_table[qr_version][error_correction][encoding] > len( ) ):
+        if(capacity_table[qr_version][error_correction][encoding] > len(message) ):
             break
         qr_version += 1
 
     char_count_code = getCharacterCountIndicator(qr_version, message, encoding)
     
 
-    print(mode, char_count_code, qr_version, encoded_message)
+    print("Version " + str(qr_version) + ")", mode, char_count_code, encoded_message)
+    bit_string = mode + char_count_code + "".join(encoded_message)
 
-            
+    padding = addPadding(bit_string, qr_version, error_correction)
+    print(bit_string+padding)
 
 
 def main():
