@@ -53,3 +53,32 @@ alphanumeric_table = {
     '/': 43,
     ':': 44
 }
+
+alignment_pattern_locations = {
+    2: {"starting_number": 18, "increment": None},
+    3: {"starting_number": 22, "increment": None},
+    4: {"starting_number": 26, "increment": None},
+    5: {"starting_number": 30, "increment": None},
+    6: {"starting_number": 34, "increment": None},
+    7: {"starting_number": 22, "increment": 16},
+    8: {"starting_number": 24, "increment": 18},
+    9: {"starting_number": 26, "increment": 20},
+    10: {"starting_number": 28, "increment": 22},
+    11: {"starting_number": 30, "increment": 24},
+    12: {"starting_number": 32, "increment": 26},
+    13: {"starting_number": 34, "increment": 28},
+    14: {"starting_number": 26, "increment": 20},
+    15: {"starting_number": 26, "increment": 22},
+    16: {"starting_number": 26, "increment": 24},
+    17: {"starting_number": 30, "increment": 24},
+    18: {"starting_number": 30, "increment": 26},
+    19: {"starting_number": 30, "increment": 28},
+    20: {"starting_number": 34, "increment": 28},
+    21: {"starting_number": 28, "increment": 22},
+    22: {"starting_number": 26, "increment": 24},
+    23: {"starting_number": 30, "increment": 24},
+    24: {"starting_number": 28, "increment": 26},
+    25: {"starting_number": 32, "increment": 26},
+    26: {"starting_number": 30, "increment": 28},
+    27: {"starting_number": 34, "increment": 28}
+}

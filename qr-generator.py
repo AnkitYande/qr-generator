@@ -8,20 +8,79 @@ from ec_table import ec_blocks_table
 def create_qr_matrix(size):
     return [[None] * size for _ in range(size)]
 
-def add_finder_pattern(matrix, top_left):
+def add_dark_module(matrix):
+    matrix[-8][8] = 1
+
+def add_format_info(matrix):
+    for i in range(0,9):
+        if i != 6:
+            matrix[8][i] = 2
+            matrix[i][8] = 2
+    for i in range(len(matrix)-8,len(matrix)):
+        matrix[8][i] = 2
+    for i in range(len(matrix)-7,len(matrix)):
+        matrix[i][8] = 2
+
+def add_version_info(matrix):
+    for i in range(len(matrix) -11, len(matrix) -8 ):
+        for j in range(0,6):
+            matrix[i][j] = 3
+            matrix[j][i] = 3
+
+def add_finder_patterns(qr_matrix, qr_size):
+    add_finder_pattern(qr_matrix, [0,0], [1,1])
+    add_finder_pattern(qr_matrix, [qr_size-8,0], [0,1])
+    add_finder_pattern(qr_matrix, [0,qr_size-8], [1,0])
+
+def add_finder_pattern(matrix, top_left, pad):
     """Add a 7x7 finder pattern to the matrix at the given top-left position."""
+    """pad is used for separators"""
     pattern = [
-        [1, 1, 1, 1, 1, 1, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 0, 1, 1, 1, 0, 1],
-        [1, 0, 1, 1, 1, 0, 1],
-        [1, 0, 1, 1, 1, 0, 1],
-        [1, 0, 0, 0, 0, 0, 1],
-        [1, 1, 1, 1, 1, 1, 1]
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 1, 0, 0, 0, 0, 0, 1, 0],
+        [0, 1, 0, 1, 1, 1, 0, 1, 0],
+        [0, 1, 0, 1, 1, 1, 0, 1, 0],
+        [0, 1, 0, 1, 1, 1, 0, 1, 0],
+        [0, 1, 0, 0, 0, 0, 0, 1, 0],
+        [0, 1, 1, 1, 1, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
     ]
-    for r in range(7):
-        for c in range(7):
-            matrix[top_left[0] + r][top_left[1] + c] = pattern[r][c]
+    for r in range(8):
+        for c in range(8):
+            matrix[top_left[0] + r][top_left[1] + c] = pattern[r+pad[0]][c+pad[1]]
+
+def add_alignment_patterns(matrix, qr_version):
+    start = alignment_pattern_locations[qr_version]["starting_number"]
+    end = len(matrix)
+    step = alignment_pattern_locations[qr_version]["increment"]
+    
+    for i in range(start, end-8, step):
+        add_alignment_pattern(matrix, [i,6])
+    for i in range(start, end-8, step):
+        add_alignment_pattern(matrix, [6,i])
+
+    for i in range(start, end, step):
+        for j in range(start, end, step):
+            add_alignment_pattern(matrix, [i,j])
+
+def add_alignment_pattern(matrix, top_left):
+    """Add a 5x5 alignment pattern to the matrix at the given top-left position."""
+    pattern = [
+        [1, 1, 1, 1, 1],
+        [1, 0, 0, 0, 1],
+        [1, 0, 1, 0, 1],
+        [1, 0, 0, 0, 1],
+        [1, 1, 1, 1, 1]
+    ]
+    for r in range(5):
+        for c in range(5):
+            matrix[top_left[0] - 2 + r][top_left[1] - 2 + c] = pattern[r][c]
+
+def add_timing_patterns(matrix):
+    for i in range (7, len(matrix)-7):
+        matrix[6][i] = i%2==0
+        matrix[i][6] = i%2==0
 
 def draw_qr(matrix, scale=10):
     """Render the QR matrix to an image."""
@@ -39,12 +98,17 @@ def draw_qr(matrix, scale=10):
                 draw.rectangle(
                     [c * scale, r * scale, (c+1) * scale, (r+1) * scale], fill='blue'
                 )
+            if matrix[r][c] == 2:
+                draw.rectangle(
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale], fill='green'
+                )
+            if matrix[r][c] == 3:
+                draw.rectangle(
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale], fill='purple'
+                )
 
     img.save('qr_code.png')
 
-# Main logic
-qr_size = 21
-qr_matrix = create_qr_matrix(qr_size)
 
 def encode_numeric(number):
     res = []
@@ -122,7 +186,7 @@ def getUserInput():
     match encoding:
         case 1: encoded_message = encode_numeric(message)
         case 2: encoded_message = encode_alphanumeric(message)
-        case 3:encoded_message = list(map(lambda char: format(ord(char), '08b'), message))
+        case 3: encoded_message = list(map(lambda char: format(ord(char), '08b'), message))
         case _:
             print("Please chose a valid encoding method")
             sys.exit()
@@ -144,6 +208,21 @@ def getUserInput():
     padding = addPadding(bit_string, qr_version, error_correction)
     print(bit_string+padding)
 
+    global qr_matrix
+    qr_size = (((qr_version-1)*4)+21)
+    qr_matrix = create_qr_matrix(qr_size)
+
+    add_finder_patterns(qr_matrix, qr_size)
+    add_alignment_patterns(qr_matrix, qr_version)
+    add_timing_patterns(qr_matrix)
+    add_dark_module(qr_matrix)
+    add_format_info(qr_matrix)
+    if(qr_version >= 7): 
+        add_version_info(qr_matrix)
+
+
+# Main logic
+qr_matrix = []
 
 def main():
     getUserInput()
