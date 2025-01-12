@@ -1,3 +1,4 @@
+from copy import deepcopy
 import math
 import sys
 from PIL import Image, ImageDraw
@@ -54,6 +55,7 @@ def add_alignment_patterns(matrix, qr_version):
     start = alignment_pattern_locations[qr_version]["starting_number"]
     end = len(matrix)
     step = alignment_pattern_locations[qr_version]["increment"]
+    print("start", start, "end", end, "step", step)
     
     for i in range(start, end-8, step):
         add_alignment_pattern(matrix, [i,6])
@@ -82,32 +84,76 @@ def add_timing_patterns(matrix):
         matrix[6][i] = i%2==0
         matrix[i][6] = i%2==0
 
-def draw_qr(matrix, scale=10):
+def protect_reserved_areas(qr_matrix):
+    size = len(qr_matrix)
+    for r in range(size):
+        for c in range(size):
+            if(qr_matrix[r][c] == 0): qr_matrix[r][c] = 4
+            if(qr_matrix[r][c] == 1): qr_matrix[r][c] = 5
+    return qr_matrix
+
+def unprotect_reserved_areas(qr_matrix):
+    size = len(qr_matrix)
+    for r in range(size):
+        for c in range(size):
+            if qr_matrix[r][c] == 4: qr_matrix[r][c] = 0
+            if qr_matrix[r][c] == 5: qr_matrix[r][c] = 1
+    return qr_matrix
+
+def draw_qr(matrix, scale=10, show_outline = False, output='qr_code.png'):
     """Render the QR matrix to an image."""
     size = len(matrix)
     img = Image.new('RGB', (size * scale, size * scale), 'white')
     draw = ImageDraw.Draw(img)
+    
+    outline_color = 'black' if show_outline else None  # Outline only if show_outline is True
 
     for r in range(size):
         for c in range(size):
+            if matrix[r][c] is None:
+                draw.rectangle(
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale],
+                    fill='blue',
+                    outline=outline_color
+                )
+            if matrix[r][c] == 0:
+                draw.rectangle(
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale],
+                    fill='white',
+                    outline=outline_color
+                )
             if matrix[r][c] == 1:
                 draw.rectangle(
-                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale], fill='black'
-                )
-            if matrix[r][c] == None:
-                draw.rectangle(
-                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale], fill='blue'
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale],
+                    fill='black',
+                    outline=outline_color
                 )
             if matrix[r][c] == 2:
                 draw.rectangle(
-                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale], fill='green'
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale],
+                    fill='green',
+                    outline=outline_color
                 )
             if matrix[r][c] == 3:
                 draw.rectangle(
-                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale], fill='purple'
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale],
+                    fill='purple',
+                    outline=outline_color
+                )
+            if matrix[r][c] == 4:
+                draw.rectangle(
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale],
+                    fill='#dddddd',
+                    outline=outline_color
+                )
+            if matrix[r][c] == 5:
+                draw.rectangle(
+                    [c * scale, r * scale, (c+1) * scale, (r+1) * scale],
+                    fill='#222222',
+                    outline=outline_color
                 )
 
-    img.save('qr_code.png')
+    img.save(output)
 
 
 def encode_numeric(number):
@@ -176,12 +222,209 @@ def addPadding(data, version, ec_level):
     
     return padding
 
+def eval_mask(qr_matrix):
+    
+    size = len(qr_matrix)
+
+    def penalty_rule_1():
+        penalty1 = 0
+
+        # Check rows for penalties
+        for row in qr_matrix:
+            i, j = 0, 0
+            while j < size:
+                if row[i] != row[j] or j == size - 1:
+                    consecutive = j - i if row[i] != row[j] else j - i + 1
+                    if consecutive >= 5:
+                        penalty1 += 3 + (consecutive - 5)
+                    i = j
+                j += 1
+        temp = penalty1
+        print("row penalty", penalty1)
+
+        # Check columns for penalties
+        for col in range(size):
+            i, j = 0, 0
+            while j < size:
+                if qr_matrix[i][col] != qr_matrix[j][col] or j == size - 1:
+                    consecutive = j - i if qr_matrix[i][col] != qr_matrix[j][col] else j - i + 1
+                    if consecutive >= 5:
+                        penalty1 += 3 + (consecutive - 5)
+                    i = j
+                j += 1
+        print("col penalty", penalty1-temp)
+
+        print("penalty1:", penalty1)
+        return penalty1
+    
+    def penalty_rule_2():
+        penalty2 = 0
+
+        for i in range(size - 1):
+            for j in range(size - 1):
+                # Check if the 2x2 block starting at (i, j) is of the same color
+                if (qr_matrix[i][j] == qr_matrix[i + 1][j] and
+                    qr_matrix[i][j] == qr_matrix[i][j + 1] and
+                    qr_matrix[i][j] == qr_matrix[i + 1][j + 1]):
+                    penalty2 += 3
+
+        print("penalty2:", penalty2)
+        return penalty2
+
+    def penalty_rule_3():
+        penalty3 = 0
+
+        pattern_1 = [1, 0, 1, 1, 1, 0, 1, 1, 0, 0, 0]
+        pattern_2 = [0, 0, 0, 0, 1, 0, 1, 1, 1, 0, 1]
+
+        def check_pattern(seq):
+            nonlocal penalty3
+            for i in range(len(seq) - 10):
+                if seq[i:i+11] == pattern_1 or seq[i:i+11] == pattern_2:
+                    penalty3 += 40
+
+        # Check rows
+        for row in qr_matrix:
+            check_pattern(row)
+
+        # Check columns (transpose logic)
+        for col_idx in range(size):
+            col = [qr_matrix[row_idx][col_idx] for row_idx in range(size)]
+            check_pattern(col)
+
+        print("penalty3:", penalty3)
+        return penalty3
+
+    def penalty_rule_4():
+        # Step 1: Count the total number of modules
+        total_modules = size * size
+        
+        # Step 2: Count the dark modules (1 represents dark)
+        dark_modules = sum(1 for row in qr_matrix for cell in row if cell == 1)
+        
+        # Step 3: Calculate the percentage of dark modules
+        dark_percentage = (dark_modules / total_modules) * 100
+        
+        # Step 4: Find the previous and next multiples of five
+        prev_multiple_of_five = (dark_percentage // 5) * 5
+        next_multiple_of_five = prev_multiple_of_five + 5 if dark_percentage % 5 != 0 else prev_multiple_of_five
+        
+        # Step 5: Calculate the differences from 50 and take the absolute value
+        diff_prev = abs(prev_multiple_of_five - 50)
+        diff_next = abs(next_multiple_of_five - 50)
+        
+        # Step 6: Divide the differences by 5
+        penalty_prev = diff_prev // 5
+        penalty_next = diff_next // 5
+        
+        # Step 7: Take the smallest of the two numbers and multiply by 10
+        penalty4= min(penalty_prev, penalty_next) * 10
+        
+        print("penalty4:", penalty4)
+        return int(penalty4)
+    
+    penalty1 = penalty_rule_1()
+    penalty2 = penalty_rule_2()
+    penalty3 = penalty_rule_3()
+    penalty4 = penalty_rule_4()
+    penalty = penalty1 + penalty2 + penalty3 + penalty4
+    print("Total Penalty", penalty)
+    return penalty    
+
+
+def find_best_mask(old_matrix):
+    global qr_matrix
+    bestIdx = -1
+    bestScore = math.inf
+    for i in range(0,8):
+        temp_matrix = deepcopy(old_matrix)
+        temp_matrix = apply_mask(temp_matrix, i)
+        temp_matrix = unprotect_reserved_areas(temp_matrix)
+        draw_qr(temp_matrix, show_outline=True, output='qr_code_'+str(i)+'.png')
+        score = eval_mask(temp_matrix)
+        if(score < bestScore):
+            bestScore = score
+            bestIdx = i
+    
+    print("bestIdx", bestIdx)
+    temp_matrix = deepcopy(old_matrix)
+    temp_matrix = apply_mask(temp_matrix, bestIdx)
+    temp_matrix = unprotect_reserved_areas(temp_matrix)
+    qr_matrix = temp_matrix
+    return bestIdx
+
+
+
+def apply_mask(qr_matrix, maskVersion):
+   
+    size = len(qr_matrix)
+    for r in range(size):
+        for c in range(size):
+
+            if not (qr_matrix[r][c] == 0 or qr_matrix[r][c] == 1):
+                continue
+
+            match maskVersion:
+                case 0:
+                    if ((r+c) % 2) == 0:
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case 1:
+                    if (r % 2) == 0 :
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case 2:
+                    if (c % 3) == 0 :
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case 3:
+                    if ((r+c) % 3) == 0 :
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case 4:
+                    if ((r//2 + c//3) % 2) == 0 :
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case 5:
+                    if (((r * c) % 2) + ((r * c) % 3)) == 0:
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case 6:
+                    if (((r * c) % 2) + ((r * c) % 3)) % 2 == 0:
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case 7:
+                    if (((r + c) % 2) + ((r * c) % 3)) % 2 == 0:
+                        qr_matrix[r][c] = int(not qr_matrix[r][c])
+                case _:
+                    print("ERROR: mask version not provided")
+                    return
+    
+    return qr_matrix
+
+def place_data_bits(data_bits):
+    global qr_matrix
+    rows = len(qr_matrix)
+    cols = len(qr_matrix[0])
+    direction = -1  # -1 for up, 1 for down
+    bit_index = 0
+
+    for col in range(cols - 1, -1, -2):
+        # Skip the vertical timing pattern
+        if col == 6:
+            col -= 1
+
+        # Process the two-column segment
+        current_col_range = [col, col - 1] if col - 1 >= 0 else [col]
+        for row in range(rows - 1, -1, -1) if direction == -1 else range(rows):
+            for current_col in current_col_range:
+                if bit_index >= len(data_bits):  # Stop if all bits are placed
+                    return
+                if qr_matrix[row][current_col] is None:  # Place bit only in unpopulated modules
+                    qr_matrix[row][current_col] = int(data_bits[bit_index])
+                    bit_index += 1
+
+        # Reverse direction after processing one set of columns
+        direction *= -1
 
 def getUserInput():
     print("QR Code Generation (Version 1-26)")
-    message = input("Enter your message: ")
-    encoding = int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
-    error_correction = input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
+    message = "This is a test by Ankit@Yande-123" #input("Enter your message: ")
+    encoding = 3#int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
+    error_correction = 'L'#input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
 
     match encoding:
         case 1: encoded_message = encode_numeric(message)
@@ -206,7 +449,8 @@ def getUserInput():
     bit_string = mode + char_count_code + "".join(encoded_message)
 
     padding = addPadding(bit_string, qr_version, error_correction)
-    print(bit_string+padding)
+    bit_string+=padding
+    print(bit_string)
 
     global qr_matrix
     qr_size = (((qr_version-1)*4)+21)
@@ -220,13 +464,21 @@ def getUserInput():
     if(qr_version >= 7): 
         add_version_info(qr_matrix)
 
+    qr_matrix = protect_reserved_areas(qr_matrix)
+    place_data_bits(bit_string)
+
+    mask = find_best_mask(qr_matrix)
+    mask_bits = format(mask, '03b')
+
+    draw_qr(qr_matrix)
+
+
 
 # Main logic
 qr_matrix = []
 
 def main():
     getUserInput()
-    draw_qr(qr_matrix)
 
 
 if __name__=="__main__":

@@ -55,11 +55,11 @@ alphanumeric_table = {
 }
 
 alignment_pattern_locations = {
-    2: {"starting_number": 18, "increment": None},
-    3: {"starting_number": 22, "increment": None},
-    4: {"starting_number": 26, "increment": None},
-    5: {"starting_number": 30, "increment": None},
-    6: {"starting_number": 34, "increment": None},
+    2: {"starting_number": 18, "increment": 1000},
+    3: {"starting_number": 22, "increment": 1000},
+    4: {"starting_number": 26, "increment": 1000},
+    5: {"starting_number": 30, "increment": 1000},
+    6: {"starting_number": 34, "increment": 1000},
     7: {"starting_number": 22, "increment": 16},
     8: {"starting_number": 24, "increment": 18},
     9: {"starting_number": 26, "increment": 20},
