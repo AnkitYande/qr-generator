@@ -1,6 +1,7 @@
-from copy import deepcopy
 import math
 import sys
+from copy import deepcopy
+import reedsolo
 from PIL import Image, ImageDraw
 from lookup_table import *
 from character_capacity import capacity_table
@@ -52,6 +53,8 @@ def add_finder_pattern(matrix, top_left, pad):
             matrix[top_left[0] + r][top_left[1] + c] = pattern[r+pad[0]][c+pad[1]]
 
 def add_alignment_patterns(matrix, qr_version):
+    if qr_version == 1: return
+
     start = alignment_pattern_locations[qr_version]["starting_number"]
     end = len(matrix)
     step = alignment_pattern_locations[qr_version]["increment"]
@@ -240,7 +243,6 @@ def eval_mask(qr_matrix):
                     i = j
                 j += 1
         temp = penalty1
-        print("row penalty", penalty1)
 
         # Check columns for penalties
         for col in range(size):
@@ -252,9 +254,8 @@ def eval_mask(qr_matrix):
                         penalty1 += 3 + (consecutive - 5)
                     i = j
                 j += 1
-        print("col penalty", penalty1-temp)
 
-        print("penalty1:", penalty1)
+        # print("penalty1:", penalty1)
         return penalty1
     
     def penalty_rule_2():
@@ -268,7 +269,7 @@ def eval_mask(qr_matrix):
                     qr_matrix[i][j] == qr_matrix[i + 1][j + 1]):
                     penalty2 += 3
 
-        print("penalty2:", penalty2)
+        # print("penalty2:", penalty2)
         return penalty2
 
     def penalty_rule_3():
@@ -292,7 +293,7 @@ def eval_mask(qr_matrix):
             col = [qr_matrix[row_idx][col_idx] for row_idx in range(size)]
             check_pattern(col)
 
-        print("penalty3:", penalty3)
+        # print("penalty3:", penalty3)
         return penalty3
 
     def penalty_rule_4():
@@ -320,7 +321,7 @@ def eval_mask(qr_matrix):
         # Step 7: Take the smallest of the two numbers and multiply by 10
         penalty4= min(penalty_prev, penalty_next) * 10
         
-        print("penalty4:", penalty4)
+        # print("penalty4:", penalty4)
         return int(penalty4)
     
     penalty1 = penalty_rule_1()
@@ -328,7 +329,7 @@ def eval_mask(qr_matrix):
     penalty3 = penalty_rule_3()
     penalty4 = penalty_rule_4()
     penalty = penalty1 + penalty2 + penalty3 + penalty4
-    print("Total Penalty", penalty)
+    print("Penalty", penalty)
     return penalty    
 
 
@@ -352,7 +353,6 @@ def find_best_mask(old_matrix):
     temp_matrix = unprotect_reserved_areas(temp_matrix)
     qr_matrix = temp_matrix
     return bestIdx
-
 
 
 def apply_mask(qr_matrix, maskVersion):
@@ -420,11 +420,30 @@ def place_data_bits(data_bits):
         # Reverse direction after processing one set of columns
         direction *= -1
 
+
+def errorCorrection(bitString, version, ec_level):
+    
+    # Split the string into 8-character ints for poly coefficients 
+    message_coefficients  = [int(bitString[i:i+8], 2) for i in range(0, len(bitString), 8)]
+
+    generator_poly_size = ec_blocks_table[version][ec_level][4]
+
+    # 100011101 
+    reedsolo.init_tables(0x11d) #, generator=2, c_exp=8)
+    rs = reedsolo.RSCodec(generator_poly_size)
+    encoded = rs.encode(bytearray(message_coefficients))
+
+    # seperate error correction portion
+    error_correction = list(encoded[-generator_poly_size:])
+
+    return error_correction
+    
+
 def getUserInput():
     print("QR Code Generation (Version 1-26)")
-    message = "This is a test by Ankit@Yande-123" #input("Enter your message: ")
-    encoding = 3#int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
-    error_correction = 'L'#input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
+    message = "HELLO WORLD" #input("Enter your message: ")
+    encoding = 2 #int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
+    error_correction = 'M' #input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
 
     match encoding:
         case 1: encoded_message = encode_numeric(message)
@@ -450,7 +469,10 @@ def getUserInput():
 
     padding = addPadding(bit_string, qr_version, error_correction)
     bit_string+=padding
-    print(bit_string)
+    print("bit string:", bit_string)
+
+    error_correction = errorCorrection(bit_string, qr_version, error_correction)
+    print("error correction", error_correction)
 
     global qr_matrix
     qr_size = (((qr_version-1)*4)+21)
