@@ -421,6 +421,55 @@ def place_data_bits(data_bits):
         # Reverse direction after processing one set of columns
         direction *= -1
 
+def place_format_bits(format_bits):
+    global qr_matrix
+    rows = len(qr_matrix) - 1
+    cols = len(qr_matrix[0]) - 1
+
+    for i in range(0,7):
+        qr_matrix[8][i if i <= 5 else i+1] = int(format_bits[i])
+        qr_matrix[rows-i][8] = int(format_bits[i])
+    
+    for i in range(7,15):
+        qr_matrix[8][cols-14+i] = int(format_bits[i])
+        qr_matrix[14-i if i >=9 else 15-i][8] = int(format_bits[i])
+
+# def encode_format_string(format_string):
+
+#     data = format_string + '0' * 10
+#     format_string = list(format_string)
+
+#     # x^10 + x^8 + x^5 + x^4 + x^2 + x + 1
+#     generator_polynomial = [1, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1]
+
+#     remainder = divide_polynomial(data, generator_polynomial)
+
+#     # Left Pad the remainder to 10 bits
+#     while len(remainder) < 10:
+#         remainder.insert(0, 0)
+
+#     combined_string = format_string + remainder
+#     result = ''.join(map(str, combined_string))
+#     return result
+
+
+# def divide_polynomial(data, generator):
+#     """Perform polynomial division using XOR."""
+#     current_data = data[:]  # Copy the data to avoid modifying the input
+#     generator_length = len(generator)
+
+#     while len(current_data) >= generator_length:
+#         # Pad the generator polynomial with zeros to match the current data length
+#         padded_generator = generator + [0] * (len(current_data) - generator_length)
+#         print(current_data, padded_generator)
+#         if current_data[0] == 1:  # Only divide if the leading bit is 1
+#             # Perform XOR operation
+#             for i in range(len(current_data)):
+#                 current_data[i] ^= padded_generator[i]
+#         # Remove the leading bit
+#         current_data.pop(0)
+
+#     return current_data
 
 def errorCorrection(message_coefficients, generator_poly_size):
 
@@ -429,15 +478,13 @@ def errorCorrection(message_coefficients, generator_poly_size):
     rs = reedsolo.RSCodec(generator_poly_size)
     encoded = rs.encode(bytearray(message_coefficients))
 
-    # seperate error correction portion
+    # separate error correction portion
     error_correction = list(encoded[-generator_poly_size:])
 
     return error_correction
 
 
 def structureMessage(data, version, ec_level):
-    # TODO: remove, for testingS
-    # data = "0100001101010101010001101000011001010111001001100101010111000010011101110011001000000110000100100000011001100111001001101111011011110110010000100000011101110110100001101111001000000111001001100101011000010110110001101100011110010010000001101011011011100110111101110111011100110010000001110111011010000110010101110010011001010010000001101000011010010111001100100000011101000110111101110111011001010110110000100000011010010111001100101110000011101100000100011110110000010001111011000001000111101100"
     message_codewords  = [data[i:i+8] for i in range(0, len(data), 8)]
     
     (g1, g1b, g2, g2b, ec_codewords) = ec_blocks_table[version][ec_level]
@@ -491,9 +538,9 @@ qr_matrix = []
 
 def main():
     print("QR Code Generation (Version 1-26)")
-    message = "Hi Beeb! Your smartie goose loves you!" #input("Enter your message: ")
-    encoding = 3 #int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
-    error_correction_level = 'Q' #input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
+    message = input("Enter your message: ")
+    encoding = int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
+    error_correction_level = input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
 
     match encoding:
         case 1: encoded_message = encode_numeric(message)
@@ -532,15 +579,19 @@ def main():
     add_timing_patterns(qr_matrix)
     add_dark_module(qr_matrix)
     add_format_info(qr_matrix)
-    if(qr_version >= 7): 
-        add_version_info(qr_matrix)
+    if(qr_version >= 7): add_version_info(qr_matrix)
 
     qr_matrix = protect_reserved_areas(qr_matrix)
+
     place_data_bits(bit_string)
 
     mask = find_best_mask(qr_matrix)
-    mask_bits = format(mask, '03b')
 
+    format_string = format_information_bits[error_correction_level][mask]
+    print("format string", format_string)
+    place_format_bits(format_string)
+
+    qr_matrix = unprotect_reserved_areas(qr_matrix)
     draw_qr(qr_matrix)
 
 
