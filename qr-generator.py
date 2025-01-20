@@ -58,7 +58,7 @@ def add_alignment_patterns(matrix, qr_version):
     start = alignment_pattern_locations[qr_version]["starting_number"]
     end = len(matrix)
     step = alignment_pattern_locations[qr_version]["increment"]
-    print("start", start, "end", end, "step", step)
+    # print("start", start, "end", end, "step", step)
     
     for i in range(start, end-8, step):
         add_alignment_pattern(matrix, [i,6])
@@ -176,7 +176,7 @@ def encode_alphanumeric(str):
         group = str[:2]
         encoded_val = (alphanumeric_table[group[:1]] * 45 + alphanumeric_table[group[1:]]) if len(group) > 1 else alphanumeric_table[group]
         encoding_format = '011b' if len(group) > 1 else '06b'
-        print(group, encoding_format, encoded_val)
+        # print(group, encoding_format, encoded_val)
         res.append(format(encoded_val, encoding_format))
         str = str[2:]
     return res
@@ -395,6 +395,7 @@ def apply_mask(qr_matrix, maskVersion):
     
     return qr_matrix
 
+
 def place_data_bits(data_bits):
     global qr_matrix
     rows = len(qr_matrix)
@@ -421,15 +422,10 @@ def place_data_bits(data_bits):
         direction *= -1
 
 
-def errorCorrection(bitString, version, ec_level):
-    
-    # Split the string into 8-character ints for poly coefficients 
-    message_coefficients  = [int(bitString[i:i+8], 2) for i in range(0, len(bitString), 8)]
-
-    generator_poly_size = ec_blocks_table[version][ec_level][4]
+def errorCorrection(message_coefficients, generator_poly_size):
 
     # 100011101 
-    reedsolo.init_tables(0x11d) #, generator=2, c_exp=8)
+    reedsolo.init_tables(0x11d)
     rs = reedsolo.RSCodec(generator_poly_size)
     encoded = rs.encode(bytearray(message_coefficients))
 
@@ -437,13 +433,67 @@ def errorCorrection(bitString, version, ec_level):
     error_correction = list(encoded[-generator_poly_size:])
 
     return error_correction
-    
 
-def getUserInput():
+
+def structureMessage(data, version, ec_level):
+    # TODO: remove, for testingS
+    # data = "0100001101010101010001101000011001010111001001100101010111000010011101110011001000000110000100100000011001100111001001101111011011110110010000100000011101110110100001101111001000000111001001100101011000010110110001101100011110010010000001101011011011100110111101110111011100110010000001110111011010000110010101110010011001010010000001101000011010010111001100100000011101000110111101110111011001010110110000100000011010010111001100101110000011101100000100011110110000010001111011000001000111101100"
+    message_codewords  = [data[i:i+8] for i in range(0, len(data), 8)]
+    
+    (g1, g1b, g2, g2b, ec_codewords) = ec_blocks_table[version][ec_level]
+
+    g1_arr = []
+    g1_ec_arr = []
+    for block in range(g1):
+        temp = []
+        for i in range(g1b):
+            word = message_codewords[block*g1b + i]
+            temp.append(int(word, 2))
+        g1_arr.append(temp)
+        g1_ec_arr.append(errorCorrection(temp, ec_codewords))
+    # print(g1_arr)
+    # print(g1_ec_arr)
+    
+    g2_arr = []
+    g2_ec_arr = []
+    for block in range(g2):
+        temp = []
+        for i in range(g1*g1b, g1*g1b+g2b):
+            word = message_codewords[block*g2b + i]
+            temp.append(int(word, 2))
+        g2_arr.append(temp)
+        g2_ec_arr.append(errorCorrection(temp, ec_codewords))
+    # print(g2_arr)
+    # print(g2_ec_arr)
+
+    combined_arr = g1_arr + g2_arr
+    combined_ec_arr = g1_ec_arr + g2_ec_arr
+
+    final_arr = []    
+    for i in range(max(g1b, g2b)): 
+        for block in combined_arr:
+            if i < len(block):
+                final_arr.append(block[i])
+    for i in range(ec_codewords): 
+        for block in combined_ec_arr:
+            if i < len(block):
+                final_arr.append(block[i])
+
+    # convert to binary string
+    final_string = ''.join(bin(num)[2:].zfill(8) for num in final_arr)
+    
+    # add remainder bits
+    final_string += '0' * remainder_bits[version] 
+    return final_string
+
+# Main logic
+qr_matrix = []
+
+def main():
     print("QR Code Generation (Version 1-26)")
-    message = "HELLO WORLD" #input("Enter your message: ")
-    encoding = 2 #int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
-    error_correction = 'M' #input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
+    message = "Hi Beeb! Your smartie goose loves you!" #input("Enter your message: ")
+    encoding = 3 #int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
+    error_correction_level = 'Q' #input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
 
     match encoding:
         case 1: encoded_message = encode_numeric(message)
@@ -457,22 +507,21 @@ def getUserInput():
 
     qr_version = 1
     while True :
-        if(capacity_table[qr_version][error_correction][encoding] > len(message) ):
+        if(capacity_table[qr_version][error_correction_level][encoding] > len(message) ):
             break
         qr_version += 1
 
     char_count_code = getCharacterCountIndicator(qr_version, message, encoding)
     
 
-    print("Version " + str(qr_version) + ")", mode, char_count_code, encoded_message)
+    print("Generating Version " + str(qr_version) + " QR Code")
     bit_string = mode + char_count_code + "".join(encoded_message)
 
-    padding = addPadding(bit_string, qr_version, error_correction)
+    padding = addPadding(bit_string, qr_version, error_correction_level)
     bit_string+=padding
-    print("bit string:", bit_string)
 
-    error_correction = errorCorrection(bit_string, qr_version, error_correction)
-    print("error correction", error_correction)
+    bit_string = structureMessage(bit_string, qr_version, error_correction_level)
+    print("bit string:", bit_string)
 
     global qr_matrix
     qr_size = (((qr_version-1)*4)+21)
@@ -493,14 +542,6 @@ def getUserInput():
     mask_bits = format(mask, '03b')
 
     draw_qr(qr_matrix)
-
-
-
-# Main logic
-qr_matrix = []
-
-def main():
-    getUserInput()
 
 
 if __name__=="__main__":

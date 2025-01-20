@@ -1,3 +1,6 @@
+# Character Capacities by Version, Mode, and Error Correction
+# 1. Numeric Mode, 2. Alphanumeric Mode, 3. Byte Mode
+
 capacity_table = {
     1: {
         'L': {1: 41, 2: 25, 3: 17},
