@@ -114,6 +114,5 @@ def place_version_bits(qr_matrix, version_bits):
     start = len(qr_matrix) - 11
 
     for i in range(18):
-        # Bottom-left block: column by column (col % 6, row % 3)
         qr_matrix[start + i % 3][i // 3] = int(version_bits[i])
         qr_matrix[i // 3][start + i % 3] = int(version_bits[i])
