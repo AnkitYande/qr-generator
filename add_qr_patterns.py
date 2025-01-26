@@ -90,3 +90,30 @@ def reserve_version_info(matrix):
         for j in range(0,6):
             matrix[i][j] = 3
             matrix[j][i] = 3
+
+
+#########################################################################
+#                   Add Actual Format and Version Info                  #
+#########################################################################
+
+def place_format_bits(qr_matrix, format_bits):
+    rows = len(qr_matrix) - 1
+    cols = len(qr_matrix[0]) - 1
+
+    for i in range(0,7):
+        qr_matrix[8][i if i <= 5 else i+1] = int(format_bits[i])
+        qr_matrix[rows-i][8] = int(format_bits[i])
+    
+    for i in range(7,15):
+        qr_matrix[8][cols-14+i] = int(format_bits[i])
+        qr_matrix[14-i if i >=9 else 15-i][8] = int(format_bits[i])
+
+def place_version_bits(qr_matrix, version_bits):
+    version_bits = version_bits[::-1]
+
+    start = len(qr_matrix) - 11
+
+    for i in range(18):
+        # Bottom-left block: column by column (col % 6, row % 3)
+        qr_matrix[start + i % 3][i // 3] = int(version_bits[i])
+        qr_matrix[i // 3][start + i % 3] = int(version_bits[i])

@@ -85,19 +85,6 @@ def place_data_bits(qr_matrix, data_bits):
 
         # Reverse direction after processing one set of columns
         direction *= -1
-    
-def place_format_bits(qr_matrix, format_bits):
-    rows = len(qr_matrix) - 1
-    cols = len(qr_matrix[0]) - 1
-
-    for i in range(0,7):
-        qr_matrix[8][i if i <= 5 else i+1] = int(format_bits[i])
-        qr_matrix[rows-i][8] = int(format_bits[i])
-    
-    for i in range(7,15):
-        qr_matrix[8][cols-14+i] = int(format_bits[i])
-        qr_matrix[14-i if i >=9 else 15-i][8] = int(format_bits[i])
-
 
 # Interweaves data and calculates error correction 
 def structureMessage(data, version, ec_level):
@@ -154,7 +141,7 @@ def main():
     print("QR Code Generation (Version 1-26)")
     message = input("Enter your message: ")
     encoding = int(input("What encoding mode would you like:\n 1) Numeric Mode\n 2) Alphanumeric Mode\n 3) Byte Mode\n"))
-    error_correction_level = input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 25% error correction\n").upper()
+    error_correction_level = input("What error correction level would you like:\n L) 7% error correction\n M) 15% error correction\n Q) 25% error correction\n H) 30% error correction\n").upper()
 
     match encoding:
         case 1: encoded_message = encode_numeric(message)
@@ -167,6 +154,9 @@ def main():
     mode_code = mode_table[encoding]
     qr_version = getQRVersion(error_correction_level, encoding, message)
     char_count_code = getCharacterCountIndicator(qr_version, message, encoding)
+    print("Generating Version " + str(qr_version) + " QR Code")
+
+    if(qr_version > 26): print("Sorry, yor message is too long. This generator only supports QR codes up to Size 26")
 
     # Encode and Structure Data
     bit_string = mode_code + char_count_code + "".join(encoded_message)
@@ -177,7 +167,6 @@ def main():
     # Create matrix to store QR code
     qr_size = (((qr_version-1)*4)+21)
     qr_matrix = [[None] * qr_size for _ in range(qr_size)]
-    print("Generating Version " + str(qr_version) + " QR Code")
 
     # Add Patterns
     add_finder_patterns(qr_matrix, qr_size)
@@ -203,6 +192,11 @@ def main():
     # Add Format Data
     format_string = format_information_bits[error_correction_level][mask]
     place_format_bits(qr_matrix, format_string)
+
+    # Add Version Data
+    if(qr_version >= 7): 
+        version_string = version_information_bits[qr_version]
+        place_version_bits(qr_matrix, version_string)
 
     # Draw final QR Code
     print("Final Data", qr_matrix)
