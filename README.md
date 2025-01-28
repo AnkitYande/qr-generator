@@ -9,3 +9,6 @@ You will need to install the `reedsolo` and `pillow` python libraries to run thi
 #### Acknowledgment:
 
 This project was made possible by following [Thonky&#39;s QR Code Tutorial](https://www.thonky.com/qr-code-tutorial/) which breaks down the ISO/IEC 18004:2006 specification for encoding a message into a QR Code
+
+![QR Code](https://github.com/AnkitYande/qr-generator/blob/main/qr_code.png)
+
